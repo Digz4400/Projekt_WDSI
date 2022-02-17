@@ -4,50 +4,43 @@
 """code template"""
 
 import os
-import random
 import numpy as np
 import cv2
 from sklearn.ensemble import RandomForestClassifier
 import xml.etree.ElementTree as ET
 from sklearn.metrics import  confusion_matrix
-import pandas
 
-# translation of 43 classes to 3 classes:
-# 0 - prohibitory
-# 1 - warning
-# 2 - mandatory
-# 3 - trafficlight
-# -1 - not used
-class_id_to_new_class_id = {"crosswalk": 2,
-                            "speedlimit": 0,
-                            "stop": 0,
-                            "trafficlight": 0}
+# 0 - Przejście dla pieszych
+# 1 - Ograniczenie prędkości
+# 2 - Znak Stop
+# 3 - Sygnalizacja Świetlana
+class_id_to_new_class_id = {"crosswalk": 0,
+                            "speedlimit": 1,
+                            "stop": 2,
+                            "trafficlight": 3}
 def load_data(path,im):
     """
-    Loads data from disk.
-    @param path: Path to dataset directory.
-    @param filename: Filename of csv file with information about samples.
-    @return: List of dictionaries, one for every sample, with entries "image" (np.array with image) and "label" (class_id).
+    Wczytywanie danych z podanych ścieżek do struktury
+    Wejście: path -> folder z plikami .xml, im -> folder z obrazami
+    Wyjście: data -> Struktura słownika zawierająca wpisy: image -> obraz, label -> Identyfikator klasy, name -> nazwę zdjęcia wraz z rozszerzeniem .png, size -> granice obiektu w pikselach
     """
     data =[]
     for plik in os.listdir(path):
         mytree = ET.parse(os.path.join(path, plik))
         myroot = mytree.getroot()
         for x in myroot.findall('object'):
-            image = cv2.imread(os.path.join(im, myroot[1].text))
-            data.append({'image': image,
+            data.append({'image': cv2.imread(os.path.join(im, myroot[1].text)),
                          'label': class_id_to_new_class_id[x.find('name').text],
                          'name':myroot[1].text,
                          'size':[x.find('bndbox/xmin').text,x.find('bndbox/ymin').text,x.find('bndbox/xmax').text,x.find('bndbox/ymax').text]})
-
     return data
-
 
 def learn_bovw(data):
     """
-    Learns BoVW dictionary and saves it as "voc.npy" file.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image) and "label" (class_id).
-    @return: Nothing
+    Nauka Bag of Visual Words (BOVW) i zapisanie nauczonego słownika jako plik slownik.npy
+    Wejście: Słownik utworzony w 'load_load'
+    Wyjście: nic
+
     """
     dict_size = 128
     bow = cv2.BOWKMeansTrainer(dict_size)
@@ -56,23 +49,21 @@ def learn_bovw(data):
     for sample in data:
         kpts = sift.detect(sample['image'], None)
         kpts, desc = sift.compute(sample['image'], kpts)
-
         if desc is not None:
             bow.add(desc)
-
     vocabulary = bow.cluster()
+    np.save('slownik.npy', vocabulary)
 
-    np.save('voc.npy', vocabulary)
 def extract_features(data):
     """
-    Extracts features for given data and saves it as "desc" entry.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image) and "label" (class_id).
-    @return: Data with added descriptors for each sample.
+    Wyciąganie opisów dla dostarczonych danych
+    Wejście: Słownik utworzony w 'load data'
+    Wyjście: Słownik 'load data' z dodanym wpisem zawierającym opis obrazu "desc"
     """
     sift = cv2.SIFT_create()
     flann = cv2.FlannBasedMatcher_create()
     bow = cv2.BOWImgDescriptorExtractor(sift, flann)
-    vocabulary = np.load('voc.npy')
+    vocabulary = np.load('slownik.npy')
     bow.setVocabulary(vocabulary)
     for sample in data:
         kpts = sift.detect(sample['image'], None)
@@ -80,12 +71,16 @@ def extract_features(data):
         sample['desc'] = desc
 
     return data
+
 def train(data):
     """
     Trains Random Forest classifier.
     @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image), "label" (class_id),
                     "desc" (np.array with descriptor).
     @return: Trained model.
+    Trenowanie Klasyfikacji random forest
+    Wejście: Słownik 'data'
+    Wyjście: Wytrenowany model
     """
     descs = []
     labels = []
@@ -99,11 +94,9 @@ def train(data):
     return rf
 def predict(rf, data):
     """
-    Predicts labels given a model and saves them as "label_pred" (int) entry for each sample.
-    @param rf: Trained model.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image), "label" (class_id),
-                    "desc" (np.array with descriptor).
-    @return: Data with added predicted labels for each sample.
+    Przewidywanie kategorii obiektu przez wytrenowany model
+    Wejście: Wytrenowany model oraz słownik data
+    Wyjście: Słownik data z dodanym wpisem predykowanych kategorii przez wytrenowany model
     """
     for sample in data:
         if sample['desc'] is not None:
@@ -112,10 +105,9 @@ def predict(rf, data):
     return data
 def evaluate(data):
     """
-    Evaluates results of classification.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image), "label" (class_id),
-                    "desc" (np.array with descriptor), and "label_pred".
-    @return: Nothing.
+    Ewaluacja wyników
+    Wejście: słownik data
+    Wyjście: nic
     """
     correct = 0
     incorrect = 0
@@ -137,24 +129,22 @@ def evaluate(data):
     return
 def display(data):
     """
-    Displays samples of correct and incorrect classification.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image), "label" (class_id),
-                    "desc" (np.array with descriptor), and "label_pred".
-    @return: Nothing.
+    Prezentacja wyników
+    Wejście: słownik data
+    Wyjście: nic
     """
     for idx, sample in enumerate(data):
         if sample['desc'] is not None:
             if sample['label_pred'] == sample['label']:
-                if sample['label_pred'] == 2:
+                if sample['label_pred'] == 0:
                     print(sample['name'])
-    print('done')
     # this function does not return anything
     return
 def display_dataset_stats(data):
     """
-    Displays statistics about dataset in a form: class_id: number_of_samples
-    @param data: List of dictionaries, one for every sample, with entry "label" (class_id).
-    @return: Nothing
+    Pokazywanie statystyk słownika
+    Wejście: Słownik data
+    Wyjście: nic
     """
     class_to_num = {}
     for idx, sample in enumerate(data):
@@ -175,7 +165,6 @@ def main():
     print('test dataset:')
     display_dataset_stats(data_test)
 
-    #you can comment those lines after dictionary is learned and saved to disk.
     #print('learning BoVW')
     #learn_bovw(data_train)
 
