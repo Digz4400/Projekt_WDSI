@@ -154,8 +154,9 @@ def main():
     #learn_bovw(data_train)
     #print('Nauka zakonczona')
 
-    print('extracting train features')
+    print('Wyciąganie opisów dla zbioru testowego')
     data_train = extract_features(data_train)
+    print('Opisy wyciągnięte')
 
     print('Trenowanie modelu')
     rf = train(data_train)
