@@ -3,7 +3,7 @@ Projekt zaliczeniowy laboratorium z Wprowadzenia do Sztucznej Inteligencji
 
 ## Opis Projektu
 Projekt ma na celuo klasyfikacje obiektów (jednego z: przejście dla pieszych, znak stop, sygnalizacja świetlna, ograniczenie prędkości) z obrazów oraz do prezentacji z podanego forderu, a następnie wyświetla informacje o danym obrazie.
-Autorem projektu jest: Adam Przybyła 144624
+Autorem projektu jest: Adam Przybyła
 
 ## Opis poszczególnych funkcji użytych w projekcie
 ### load_data(path,im)
